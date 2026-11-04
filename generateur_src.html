@@ -13,9 +13,17 @@
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;background:radial-gradient(ellipse 120% 60% at 50% -10%,rgba(255,255,255,.08),transparent 60%),linear-gradient(180deg,var(--bg2),var(--bg) 60%);
     color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;padding:40px 16px 60px}
-  main{width:100%;max-width:720px}
+  main{width:100%;max-width:760px}
   .dash{display:inline-block;width:26px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--lyria));margin-bottom:14px}
-  h1{margin:0 0 6px;font-size:28px;letter-spacing:.01em}
+  .hero{margin-bottom:26px}
+  h1{margin:0 0 12px;font-size:clamp(28px,6vw,42px);line-height:1.12;letter-spacing:-.01em}
+  h1 em{font-style:normal;background:linear-gradient(90deg,var(--accent),#7fe0d6 55%,var(--lyria));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .chips{list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0 0 22px}
+  .chips li{font-size:12px;letter-spacing:.04em;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--soft)}
+  .steps{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0;margin:0}
+  .steps li{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink);padding:11px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .steps b{flex:none;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#04201d;display:flex;align-items:center;justify-content:center;font-size:12px}
+  @media(max-width:560px){.steps{grid-template-columns:1fr}}
   p.lead{margin:0 0 26px;color:var(--soft);line-height:1.5}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px}
   .drop{border:2px dashed rgba(255,255,255,.25);border-radius:12px;padding:36px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
@@ -50,9 +58,13 @@
 </head>
 <body>
 <main>
-  <span class="dash"></span>
-  <h1>Générateur de flipbook</h1>
-  <p class="lead">Dépose un PDF : tu obtiens un livre à feuilleter avec effet de page qui se tourne, couverture centrée et double pages. Tout se passe dans ton navigateur, le PDF n'est envoyé nulle part.</p>
+  <header class="hero">
+    <span class="dash"></span>
+    <h1>Transforme ton PDF en <em>livre à feuilleter</em></h1>
+    <p class="lead">Effet de page qui se tourne, couverture centrée, double pages, miniatures et plein écran. Gratuit, sans compte, et ton PDF reste sur ton ordinateur.</p>
+    <ul class="chips"><li>Page qui se tourne</li><li>Double page fidèle</li><li>Un seul fichier HTML</li><li>Hors ligne</li></ul>
+    <ol class="steps"><li><b>1</b>Dépose le PDF</li><li><b>2</b>Choisis titre &amp; qualité</li><li><b>3</b>Télécharge le livre</li></ol>
+  </header>
 
   <section class="card" id="stepFile">
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un PDF">
