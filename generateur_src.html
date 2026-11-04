@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générateur de flipbook</title>
+<style>
+  :root{
+    --bg:#0a131f; --bg2:#0f1d2e; --card:#132235; --line:rgba(253,253,251,.14);
+    --ink:#f4f6f5; --soft:#9fb0bd; --accent:#1bb3a6; --accent-dim:#14867d; --lyria:#e2142d;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:radial-gradient(ellipse 120% 60% at 50% -10%,rgba(255,255,255,.08),transparent 60%),linear-gradient(180deg,var(--bg2),var(--bg) 60%);
+    color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;padding:40px 16px 60px}
+  main{width:100%;max-width:720px}
+  .dash{display:inline-block;width:26px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--lyria));margin-bottom:14px}
+  h1{margin:0 0 6px;font-size:28px;letter-spacing:.01em}
+  p.lead{margin:0 0 26px;color:var(--soft);line-height:1.5}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px}
+  .drop{border:2px dashed rgba(255,255,255,.25);border-radius:12px;padding:36px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+  .drop:hover,.drop.over{border-color:var(--accent);background:rgba(27,179,166,.07)}
+  .drop b{display:block;font-size:17px;margin-bottom:4px}
+  .drop span{color:var(--soft);font-size:13px}
+  .fileinfo{margin-top:12px;font-size:14px;color:var(--accent)}
+  label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft);margin:14px 0 6px}
+  input[type=text],select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.row{grid-template-columns:1fr}}
+  button.primary{margin-top:20px;width:100%;padding:13px;border:0;border-radius:9px;background:var(--accent);color:#04201d;font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+  button.primary:hover{background:#22c9bb}
+  button.primary:disabled{opacity:.4;cursor:not-allowed}
+  button.secondary{padding:11px 14px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);font:inherit;cursor:pointer}
+  button.secondary:hover{background:rgba(255,255,255,.13)}
+  .bar{height:6px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden;margin:12px 0 6px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  .status{font-size:14px;color:var(--soft)}
+  .err{color:#ff8b98}
+  .thumbs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:14px 0}
+  .thumbs img{height:64px;border-radius:3px;border:1px solid var(--line);flex:none}
+  .actions{display:grid;gap:10px}
+  .actions .big{padding:14px;border:0;border-radius:9px;background:var(--accent);color:#04201d;font:inherit;font-weight:600;cursor:pointer;text-align:left}
+  .actions .big small{display:block;font-weight:400;opacity:.8;margin-top:2px}
+  .actions .big:hover{background:#22c9bb}
+  .hidden{display:none}
+  .help{font-size:13px;color:var(--soft);line-height:1.55}
+  .help b{color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <span class="dash"></span>
+  <h1>Générateur de flipbook</h1>
+  <p class="lead">Dépose un PDF : tu obtiens un livre à feuilleter avec effet de page qui se tourne, couverture centrée et double pages. Tout se passe dans ton navigateur, le PDF n'est envoyé nulle part.</p>
+
+  <section class="card" id="stepFile">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un PDF">
+      <b>Dépose ton PDF ici</b>
+      <span>ou clique pour choisir un fichier</span>
+    </div>
+    <input type="file" id="file" accept="application/pdf,.pdf" class="hidden">
+    <div class="fileinfo" id="fileinfo"></div>
+
+    <div id="opts" class="hidden">
+      <div class="row">
+        <div><label for="title">Titre</label><input type="text" id="title"></div>
+        <div><label for="subtitle">Sous-titre</label><input type="text" id="subtitle" value="Catalogue numérique"></div>
+      </div>
+      <label for="quality">Qualité des pages</label>
+      <select id="quality">
+        <option value="1600:0.85">Standard — léger (≈ 1600 px par page)</option>
+        <option value="2200:0.88" selected>Haute — recommandé (≈ 2200 px)</option>
+        <option value="3000:0.90">Maximale — fichier plus lourd (≈ 3000 px)</option>
+      </select>
+      <button class="primary" id="go">Générer le flipbook</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="stepProgress">
+    <div class="status" id="status">Préparation…</div>
+    <div class="help" style="margin-top:6px">Garde cet onglet visible pendant la génération.</div>
+    <div class="bar"><i id="barFill"></i></div>
+  </section>
+
+  <section class="card hidden" id="stepDone">
+    <div class="status" id="doneMsg"></div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="actions">
+      <button class="big" id="dlHtml">⬇ Télécharger le flipbook (1 fichier HTML)<small>Recommandé. Double-clic pour l'ouvrir, marche hors ligne, s'envoie par mail ou se dépose sur n'importe quel hébergement.</small></button>
+      <button class="secondary" id="dlZip">⬇ Télécharger en ZIP (index.html + dossier d'images)</button>
+      <button class="secondary" id="preview">👁 Ouvrir l'aperçu dans un nouvel onglet</button>
+      <button class="secondary" id="again">Recommencer avec un autre PDF</button>
+    </div>
+  </section>
+
+  <section class="card help">
+    <b>Et ensuite ?</b><br>
+    <b>HTML unique</b> : ouvre-le dans Chrome ou envoie-le tel quel.
+    <b>ZIP</b> : à décompresser pour le mettre sur GitHub Pages, Netlify ou un site existant.
+    Les formats PDF, JPG ou .exe ne conviennent pas : un livre qui se feuillette doit rester une page web.
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+  var TEMPLATE = /*TEMPLATE*/"";
+  var PAGEFLIP = /*LIB*/"";
+  var PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var pdfFile = null, result = null, htmlBlobUrl = null;
+
+  var drop = $("drop"), fileInput = $("file");
+  drop.addEventListener("click", function(){ fileInput.click(); });
+  drop.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+  ["dragenter","dragover"].forEach(function(n){ drop.addEventListener(n, function(e){ e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave","drop"].forEach(function(n){ drop.addEventListener(n, function(e){ e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function(e){ if (e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]); });
+  fileInput.addEventListener("change", function(){ if (fileInput.files[0]) pick(fileInput.files[0]); });
+
+  function pick(f){
+    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf"){ $("fileinfo").innerHTML = '<span class="err">Ce fichier n\'est pas un PDF.</span>'; return; }
+    pdfFile = f;
+    $("fileinfo").textContent = f.name + " — " + (f.size / 1048576).toFixed(1) + " Mo";
+    $("title").value = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ");
+    $("opts").classList.remove("hidden");
+  }
+
+  function setProgress(txt, frac){ $("status").textContent = txt; $("barFill").style.width = Math.round(frac * 100) + "%"; }
+  function fail(msg){ $("stepProgress").classList.remove("hidden"); $("status").innerHTML = '<span class="err">' + msg + '</span>'; $("go").disabled = false; }
+
+  var workerReady = null;
+  function initWorker(){
+    if (workerReady) return workerReady;
+    // a cross-origin worker is refused when the page is opened from a file: load it through a Blob
+    workerReady = fetch(PDFJS_WORKER).then(function(r){ return r.text(); }).then(function(t){
+      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([t], {type:"text/javascript"}));
+    });
+    return workerReady;
+  }
+
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  function buildHtml(pages, dims, title, subtitle){
+    var map = {
+      "{{TITLE}}": esc(title), "{{SUBTITLE}}": esc(subtitle),
+      "{{W}}": dims.w, "{{W2}}": dims.w * 2, "{{H}}": dims.h,
+      "{{CQH}}": (100 * 2 * dims.w / dims.h).toFixed(2),
+      "{{TOTAL}}": pages.length,
+      "{{PAGES_JSON}}": JSON.stringify(pages).replace(/<\//g, "<\\/"),
+      "{{PAGEFLIP_LIB}}": PAGEFLIP.replace(/<\/script/gi, "<\\/script")
+    };
+    return TEMPLATE.replace(/\{\{[A-Z0-9_]+\}\}/g, function(k){ return (k in map) ? String(map[k]) : k; });
+  }
+
+  $("go").addEventListener("click", async function(){
+    if (!pdfFile) return;
+    $("go").disabled = true;
+    $("stepProgress").classList.remove("hidden");
+    $("stepDone").classList.add("hidden");
+    var q = $("quality").value.split(":"), targetW = +q[0], jpegQ = +q[1];
+    try {
+      if (!window.pdfjsLib || !window.JSZip) throw new Error("Impossible de charger les outils (connexion internet nécessaire pour générer).");
+      setProgress("Chargement du PDF…", 0.02);
+      await initWorker();
+      var data = new Uint8Array(await pdfFile.arrayBuffer());
+      var pdf = await pdfjsLib.getDocument({data: data}).promise;
+      var n = pdf.numPages, dataUrls = [], b64 = [], dims = null;
+      for (var i = 1; i <= n; i++){
+        setProgress("Page " + i + " / " + n + "…", 0.05 + 0.9 * (i - 1) / n);
+        var page = await pdf.getPage(i);
+        var base = page.getViewport({scale: 1});
+        var scale = targetW / base.width;
+        var vp = page.getViewport({scale: scale});
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({canvasContext: ctx, viewport: vp}).promise;
+        if (!dims) dims = {w: canvas.width, h: canvas.height};
+        var url = canvas.toDataURL("image/jpeg", jpegQ);
+        dataUrls.push(url);
+        b64.push(url.slice(url.indexOf(",") + 1));
+        canvas.width = canvas.height = 0;
+      }
+      setProgress("Assemblage du flipbook…", 0.97);
+      var title = $("title").value.trim() || "Flipbook", subtitle = $("subtitle").value.trim();
+      var single = buildHtml(dataUrls, dims, title, subtitle);
+      var relPages = b64.map(function(_, i){ return "pages/page_" + String(i + 1).padStart(3, "0") + ".jpg"; });
+      result = {title: title, single: single, zipHtml: buildHtml(relPages, dims, title, subtitle), b64: b64, relPages: relPages, dataUrls: dataUrls, n: n};
+      if (htmlBlobUrl) URL.revokeObjectURL(htmlBlobUrl);
+      htmlBlobUrl = URL.createObjectURL(new Blob([single], {type: "text/html"}));
+
+      setProgress("Terminé", 1);
+      $("doneMsg").textContent = "Flipbook prêt : " + n + " page" + (n > 1 ? "s" : "") + ", fichier de " + (single.length / 1048576).toFixed(1) + " Mo.";
+      var th = $("thumbs"); th.innerHTML = "";
+      dataUrls.slice(0, 12).forEach(function(u){ var im = new Image(); im.src = u; th.appendChild(im); });
+      $("stepDone").classList.remove("hidden");
+    } catch (e){
+      console.error(e);
+      fail("Erreur : " + (e && e.message ? e.message : e));
+    }
+    $("go").disabled = false;
+  });
+
+  function slug(s){ return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "flipbook"; }
+  function save(blob, name){
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+
+  $("dlHtml").addEventListener("click", function(){ if (result) save(new Blob([result.single], {type: "text/html"}), "Flipbook_" + slug(result.title) + ".html"); });
+  $("dlZip").addEventListener("click", async function(){
+    if (!result) return;
+    var zip = new JSZip();
+    zip.file("index.html", result.zipHtml);
+    result.b64.forEach(function(b, i){ zip.file(result.relPages[i], b, {base64: true}); });
+    save(await zip.generateAsync({type: "blob"}), "Flipbook_" + slug(result.title) + ".zip");
+  });
+  $("preview").addEventListener("click", function(){ if (htmlBlobUrl) window.open(htmlBlobUrl, "_blank"); });
+  $("again").addEventListener("click", function(){
+    result = null; pdfFile = null; fileInput.value = "";
+    $("fileinfo").textContent = ""; $("opts").classList.add("hidden");
+    $("stepDone").classList.add("hidden"); $("stepProgress").classList.add("hidden");
+    window.scrollTo({top: 0, behavior: "smooth"});
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>{{TITLE}}</title>
+<style>
+  /*
+    Layout concept: a single catalogue page floats in a dim "reading room",
+    lit from above; StPageFlip drives a real paper-curl page turn with
+    corner-drag, while a drawer of thumbnails slides up from the bottom rail.
+  */
+  :root{
+    --bg-0:#0a131f;
+    --bg-1:#0f1d2e;
+    --paper:#fdfdfb;
+    --ink:#121b26;
+    --ink-soft:#5b6b78;
+    --accent:#1bb3a6;
+    --accent-dim:#14867d;
+    --lyria:#e2142d;
+    --line:rgba(253,253,251,0.14);
+    --shadow:rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg-0:#0d1a29;
+      --bg-1:#132436;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg-0:#0d1a29;
+    --bg-1:#132436;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    margin:0;
+    position:relative;
+    background:
+      radial-gradient(ellipse 120% 70% at 50% -10%, rgba(255,255,255,0.08), transparent 60%),
+      linear-gradient(180deg,var(--bg-1),var(--bg-0) 55%);
+    color:var(--paper);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    height:100dvh;
+  }
+
+  /* --- StPageFlip base styles (inlined: CSP forbids external stylesheets) --- */
+  .stf__parent{position:relative;display:block;box-sizing:border-box;transform:translateZ(0);-ms-touch-action:pan-y;touch-action:pan-y;}
+  .sft__wrapper{position:relative;width:100%;box-sizing:border-box;}
+  .stf__parent canvas{position:absolute;width:100%;height:100%;left:0;top:0;}
+  .stf__block{position:absolute;width:100%;height:100%;box-sizing:border-box;perspective:2000px;}
+  .stf__item{display:none;position:absolute;transform-style:preserve-3d;}
+  .stf__outerShadow{position:absolute;left:0;top:0;}
+  .stf__innerShadow{position:absolute;left:0;top:0;}
+  .stf__hardShadow{position:absolute;left:0;top:0;}
+  .stf__hardInnerShadow{position:absolute;left:0;top:0;}
+  /* --- end StPageFlip base styles --- */
+
+  .top-bar{
+    position:fixed;
+    top:0;left:0;right:0;
+    z-index:40;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:calc(14px + env(safe-area-inset-top,0px)) max(18px, env(safe-area-inset-left,0px)) 28px max(18px, env(safe-area-inset-left,0px));
+    padding-right:max(18px, env(safe-area-inset-right,0px));
+    background:linear-gradient(180deg, rgba(10,16,27,0.9) 0%, rgba(10,16,27,0.55) 60%, transparent 100%);
+    pointer-events:none;
+  }
+  .top-bar > *{pointer-events:auto;}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0;}
+  .brand .dash{
+    width:22px;height:3px;border-radius:2px;flex:none;
+    background:linear-gradient(90deg,var(--accent),var(--lyria));
+  }
+  .brand .title{
+    font-family:"Archivo",sans-serif;font-weight:700;font-size:clamp(14px,3.6vw,19px);
+    letter-spacing:0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    color:#f4f6f5;
+  }
+  .brand .title b{color:var(--accent);font-weight:800;}
+  .brand .title span{color:var(--ink-soft);font-weight:500;}
+  .brand .title small{
+    display:block;font-family:"IBM Plex Sans",sans-serif;font-weight:400;font-size:11px;
+    color:var(--ink-soft);letter-spacing:0.07em;text-transform:uppercase;
+  }
+
+  .top-actions{display:flex;gap:8px;flex:none;}
+  .icon-btn{
+    width:38px;height:38px;border-radius:8px;border:1px solid var(--line);
+    background:rgba(255,255,255,0.05);color:var(--paper);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:background .15s, transform .15s, border-color .15s;
+  }
+  .icon-btn:hover{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.3);}
+  .icon-btn:active{transform:scale(0.94);}
+  .icon-btn svg{width:18px;height:18px;}
+  .icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .stage-wrap{
+    position:fixed;
+    inset:0;
+    display:flex;align-items:center;justify-content:center;
+    padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+    container-type:size;
+  }
+
+  .stage{
+    position:relative;
+    aspect-ratio:{{W2}}/{{H}};
+    width:min(100cqw, {{CQH}}cqh);
+  }
+  @supports not (width: 1cqw){
+    .stage{ width:100%; max-height:100%; }
+  }
+
+  .book-mount.no-anim{transition:none !important;}
+  .book-mount.is-back{transform:translateX(25%);clip-path:inset(-40px 50% -40px 0);}
+  .book-mount.is-cover{transform:translateX(-25%);clip-path:inset(-40px 0 -40px 50%);}
+  .book-mount{
+    transition:transform .7s cubic-bezier(.45,.05,.15,1), clip-path .7s cubic-bezier(.45,.05,.15,1);
+    position:relative;
+    width:100%;
+    height:100%;
+    clip-path:inset(-40px 0 -40px 0);
+  }
+  .cover-img{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    object-fit:cover;
+    border-radius:4px;
+    cursor:pointer;
+    opacity:1;
+  }
+  .cover-img[hidden]{display:none;}
+  #book{position:absolute;inset:0;opacity:1;}
+
+  .nav-arrow{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:46px;height:46px;border-radius:50%;
+    background:rgba(11,18,32,0.55);border:1px solid rgba(255,255,255,0.18);
+    color:var(--paper);display:flex;align-items:center;justify-content:center;
+    z-index:50;cursor:pointer;
+    transition:background .15s, transform .15s, opacity .2s;
+    backdrop-filter:blur(3px);
+  }
+  .nav-arrow:hover{background:var(--accent-dim);border-color:transparent;}
+  .nav-arrow:active{transform:translateY(-50%) scale(0.92);}
+  .nav-arrow svg{width:20px;height:20px;}
+  .nav-arrow.prev{left:-6px;}
+  .nav-arrow.next{right:-6px;}
+  .nav-arrow[disabled]{opacity:0;pointer-events:none;}
+  @media (max-width:640px){
+    .nav-arrow{width:36px;height:36px;}
+    .nav-arrow.prev{left:2px;}
+    .nav-arrow.next{right:2px;}
+  }
+
+  .drag-hint{
+    position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+    font-size:11px;letter-spacing:0.06em;color:rgba(22,26,34,0.6);
+    background:rgba(255,255,255,0.75);padding:3px 11px;border-radius:999px;
+    z-index:45;pointer-events:none;transition:opacity .4s;
+  }
+
+  .bottom-rail{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    z-index:40;
+    padding:28px max(18px, env(safe-area-inset-left,0px)) max(14px, env(safe-area-inset-bottom,0px)) max(18px, env(safe-area-inset-left,0px));
+    padding-right:max(18px, env(safe-area-inset-right,0px));
+    display:flex;flex-direction:column;gap:10px;
+    background:linear-gradient(0deg, rgba(10,16,27,0.9) 0%, rgba(10,16,27,0.55) 65%, transparent 100%);
+    pointer-events:none;
+  }
+  .bottom-rail > *{pointer-events:auto;}
+
+  .progress-row{display:flex;align-items:center;gap:14px;max-width:1020px;width:100%;margin:0 auto;}
+  .page-count{
+    font-family:"Archivo",sans-serif;font-variant-numeric:tabular-nums;font-weight:700;
+    font-size:13px;letter-spacing:0.03em;color:var(--paper);flex:none;min-width:52px;
+  }
+  .track{position:relative;flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,0.14);cursor:pointer;}
+  .track-fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:4px;background:var(--accent);transition:width .45s cubic-bezier(.4,.05,.2,1);}
+  .track-dot{
+    position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:var(--paper);
+    border:2px solid var(--accent);transform:translate(-50%,-50%);transition:left .45s cubic-bezier(.4,.05,.2,1);
+  }
+
+  .thumbs-toggle{
+    flex:none;display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--line);
+    color:var(--paper);border-radius:8px;height:34px;padding:0 11px;
+    font-family:"IBM Plex Sans",sans-serif;font-size:12px;letter-spacing:0.03em;cursor:pointer;
+  }
+  .thumbs-toggle:hover{background:rgba(255,255,255,0.08);}
+  .thumbs-toggle svg{width:15px;height:15px;}
+
+  .thumb-drawer{max-width:1020px;width:100%;margin:0 auto;overflow:hidden;max-height:0;transition:max-height .35s cubic-bezier(.4,.05,.2,1);}
+  .thumb-drawer.open{max-height:116px;}
+  .thumb-strip{display:flex;gap:10px;padding:8px 2px 4px;overflow-x:auto;scrollbar-width:thin;}
+  .thumb{
+    flex:none;width:128px;aspect-ratio:{{W}}/{{H}};border-radius:4px;overflow:hidden;cursor:pointer;
+    border:2px solid transparent;opacity:0.6;transition:opacity .15s, border-color .15s, transform .15s;
+    position:relative;background:#0003;
+  }
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .thumb:hover{opacity:0.9;transform:translateY(-2px);}
+  .thumb.active{opacity:1;border-color:var(--accent);}
+  .thumb .num{position:absolute;bottom:3px;right:5px;font-family:"Archivo",sans-serif;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.8);}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+  .lightbox{
+    position:fixed;inset:0;background:rgba(5,8,14,0.95);z-index:100;display:none;
+    align-items:center;justify-content:center;
+    padding:max(20px, env(safe-area-inset-top,0px)) max(20px, env(safe-area-inset-right,0px)) max(20px, env(safe-area-inset-bottom,0px)) max(20px, env(safe-area-inset-left,0px));
+  }
+  .lightbox.open{display:flex;}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:3px;box-shadow:0 20px 60px rgba(0,0,0,0.6);cursor:zoom-out;}
+  .lightbox-close{
+    position:absolute;top:max(16px, env(safe-area-inset-top,0px));right:max(16px, env(safe-area-inset-right,0px));
+    width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);
+    color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .track-fill, .track-dot, .thumb-drawer, .stage, .cover-img, #book{transition:none !important;}
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<header class="top-bar">
+  <div class="brand">
+    <span class="dash"></span>
+    <span class="title"><b>{{TITLE}}</b><small>{{SUBTITLE}}</small></span>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="btnZoom" title="Agrandir la page" aria-label="Agrandir la page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <button class="icon-btn" id="btnFull" title="Plein écran" aria-label="Plein écran">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="stage-wrap" id="stageWrap">
+  <div class="stage" id="stage">
+    <div class="book-mount">
+      <div id="book"></div>
+      <button class="nav-arrow prev" id="btnPrev" aria-label="Page précédente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="nav-arrow next" id="btnNext" aria-label="Page suivante">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <span class="drag-hint" id="dragHint">Glisse le coin de la page pour tourner</span>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-rail">
+  <div class="progress-row">
+    <span class="page-count"><span id="curPage">1</span> / <span id="totPage">{{TOTAL}}</span></span>
+    <div class="track" id="track" role="slider" aria-label="Navigation des pages" tabindex="0" aria-valuemin="1" aria-valuenow="1">
+      <div class="track-fill" id="trackFill"></div>
+      <div class="track-dot" id="trackDot"></div>
+    </div>
+    <button class="thumbs-toggle" id="btnThumbs" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Pages</span>
+    </button>
+  </div>
+  <div class="thumb-drawer" id="thumbDrawer">
+    <div class="thumb-strip" id="thumbStrip"></div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose" aria-label="Fermer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <img id="lightboxImg" src="" alt="Page agrandie">
+</div>
+
+<p class="sr-only" id="liveRegion" aria-live="polite"></p>
+
+<script>{{PAGEFLIP_LIB}}</script>
+<script>
+(function(){
+  var pages = {{PAGES_JSON}};
+  var TOTAL = pages.length;
+  // last index reachable as the LEFT page of a spread (or the lone back cover)
+  var LAST = TOTAL % 2 === 1 ? TOTAL - 2 : TOTAL - 1;
+  if (LAST < 0) LAST = 0;
+
+  var stageEl = document.getElementById("stage");
+  var stageWrapEl = document.getElementById("stageWrap");
+  var bookMountEl = document.querySelector(".book-mount");
+  var bookEl = document.getElementById("book");
+  var pageFlip = null, curIdx = 0, ready = false;
+  var SPREAD_AR = ({{W}} * 2) / {{H}};
+
+  function sizeForSpread(){
+    var r = stageWrapEl.getBoundingClientRect();
+    var availW = Math.max(240, r.width - 24);
+    var availH = Math.max(160, r.height - 150); // room for top bar + bottom rail
+    var w = availW, h = w / SPREAD_AR;
+    if (h > availH){ h = availH; w = h * SPREAD_AR; }
+    return {w: Math.round(w), h: Math.round(h)};
+  }
+
+  // StPageFlip draws at 1 canvas px per CSS px, which looks soft on HD / retina
+  // screens. Give the canvas real device resolution (x dpr, at least x2 for
+  // smoother downscaling of the large sources) and smooth with high quality.
+  function sharpenCanvas(){
+    var canvas = bookEl.querySelector("canvas");
+    if (!canvas || canvas.__sharp) return;
+    canvas.__sharp = true;
+    var k = Math.min(3, Math.max(window.devicePixelRatio || 1, 2));
+    var proto = HTMLCanvasElement.prototype;
+    var wDesc = Object.getOwnPropertyDescriptor(proto, "width");
+    var hDesc = Object.getOwnPropertyDescriptor(proto, "height");
+    var ctx = canvas.getContext("2d");
+    var cssW = canvas.width, cssH = canvas.height;
+    function apply(){
+      ctx.setTransform(k, 0, 0, k, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+    }
+    Object.defineProperty(canvas, "width", {
+      get: function(){ return wDesc.get.call(canvas) / k; },
+      set: function(v){ wDesc.set.call(canvas, Math.round(v * k)); apply(); }
+    });
+    Object.defineProperty(canvas, "height", {
+      get: function(){ return hDesc.get.call(canvas) / k; },
+      set: function(v){ hDesc.set.call(canvas, Math.round(v * k)); apply(); }
+    });
+    canvas.width = cssW;   // re-apply at the new resolution
+    canvas.height = cssH;
+  }
+
+  function buildBook(startIdx){
+    if (pageFlip){ try { pageFlip.destroy(); } catch(e){} pageFlip = null; }
+    // destroy() removes the container from the DOM: recreate it
+    if (!bookEl || !bookEl.isConnected){
+      bookEl = document.createElement("div");
+      bookEl.id = "book";
+      bookMountEl.insertBefore(bookEl, bookMountEl.firstChild);
+    }
+    bookEl.innerHTML = "";
+    ready = false;
+    bookMountEl.classList.add("no-anim");
+    var size = sizeForSpread();
+    stageEl.style.width = size.w + "px";
+    stageEl.style.height = size.h + "px";
+    bookEl.style.width = size.w + "px";
+    bookEl.style.height = size.h + "px";
+    pageFlip = new St.PageFlip(bookEl, {
+      width: Math.round(size.w / 2),
+      height: size.h,
+      size: "fixed",            // exact size: pages are never stretched
+      maxShadowOpacity: 0.5,
+      showCover: true,          // real cover page, centered, like a real book
+      drawShadow: true,
+      flippingTime: 700,
+      usePortrait: false,
+      useMouseEvents: true,
+      mobileScrollSupport: false,
+      swipeDistance: 20,
+      startPage: startIdx || 0
+    });
+    pageFlip.on("init", function(e){
+      sharpenCanvas();
+      ready = true;
+      setCover(startIdx === 0 || !startIdx);
+      void bookMountEl.offsetWidth;
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ bookMountEl.classList.remove("no-anim"); }); });
+      curIdx = (e && e.data && typeof e.data.page === "number") ? e.data.page : (startIdx || 0);
+      updateUI();
+    });
+    pageFlip.on("flip", function(e){ curIdx = e.data; updateUI(); });
+    // while the cover is closed, centre it; open the frame as soon as the user starts turning
+    pageFlip.on("changeState", function(e){
+      if (e.data === "read"){ setCover(curIdx === 0); setBack(TOTAL > 2 && TOTAL % 2 === 0 && curIdx === TOTAL - 1); }
+      else if (e.data === "flipping" || e.data === "user_fold"){ setCover(false); setBack(false); }
+    });
+    pageFlip.loadFromImages(pages);
+  }
+
+  function setCover(on){ bookMountEl.classList.toggle("is-cover", !!on); }
+  function setBack(on){ bookMountEl.classList.toggle("is-back", !!on); }
+
+  function updateUI(){
+    if (!pageFlip || ready){ setCover(curIdx === 0); setBack(TOTAL > 2 && TOTAL % 2 === 0 && curIdx === TOTAL - 1); }
+    var showsPair = curIdx > 0 && curIdx < TOTAL - 1;
+    var label = showsPair ? (curIdx + 1) + "–" + (curIdx + 2) : String(curIdx + 1);
+    document.getElementById("curPage").textContent = label;
+    var pct = LAST > 0 ? (curIdx / LAST) * 100 : 0;
+    document.getElementById("trackFill").style.width = pct + "%";
+    document.getElementById("trackDot").style.left = pct + "%";
+    document.getElementById("track").setAttribute("aria-valuenow", String(curIdx + 1));
+    document.getElementById("btnPrev").disabled = curIdx <= 0;
+    document.getElementById("btnNext").disabled = curIdx >= LAST;
+    document.getElementById("liveRegion").textContent = "Page " + (curIdx + 1) + " sur " + TOTAL;
+    var thumbs = document.querySelectorAll(".thumb");
+    thumbs.forEach(function(t, i){ t.classList.toggle("active", i === curIdx || (showsPair && i === curIdx + 1)); });
+    var activeThumb = thumbs[curIdx];
+    if (activeThumb && document.getElementById("thumbDrawer").classList.contains("open")){
+      activeThumb.scrollIntoView({behavior:"smooth", inline:"center", block:"nearest"});
+    }
+  }
+
+  function hideHint(){ document.getElementById("dragHint").style.opacity = "0"; }
+  function goTo(target){
+    if (!pageFlip || !ready || target < 0 || target > TOTAL - 1) return;
+    hideHint();
+    pageFlip.flip(target);
+  }
+  function step(dir){
+    if (!pageFlip || !ready) return;
+    hideHint();
+    if (dir > 0) pageFlip.flipNext(); else pageFlip.flipPrev();
+  }
+
+  var strip = document.getElementById("thumbStrip");
+  pages.forEach(function(src, i){
+    var t = document.createElement("div");
+    t.className = "thumb" + (i === 0 ? " active" : "");
+    t.innerHTML = '<img src="' + src + '" alt="Miniature page ' + (i+1) + '" loading="lazy"><span class="num">' + (i+1) + '</span>';
+    t.addEventListener("click", function(){ goTo(i); });
+    strip.appendChild(t);
+  });
+
+  buildBook(0);
+
+  document.getElementById("btnPrev").addEventListener("click", function(){ step(-1); });
+  document.getElementById("btnNext").addEventListener("click", function(){ step(1); });
+
+  document.addEventListener("keydown", function(e){
+    if (document.getElementById("lightbox").classList.contains("open")){
+      if (e.key === "Escape") closeLightbox();
+      return;
+    }
+    if (e.key === "ArrowRight") step(1);
+    else if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === "Home") goTo(0);
+    else if (e.key === "End") goTo(TOTAL - 1);
+  });
+
+  var track = document.getElementById("track");
+  track.addEventListener("click", function(e){
+    var rect = track.getBoundingClientRect();
+    goTo(Math.round(((e.clientX - rect.left) / rect.width) * (TOTAL - 1)));
+  });
+  track.addEventListener("keydown", function(e){
+    if (e.key === "ArrowRight") step(1);
+    else if (e.key === "ArrowLeft") step(-1);
+  });
+
+  var thumbsOpen = false;
+  var drawer = document.getElementById("thumbDrawer");
+  var btnThumbs = document.getElementById("btnThumbs");
+  btnThumbs.addEventListener("click", function(){
+    thumbsOpen = !thumbsOpen;
+    drawer.classList.toggle("open", thumbsOpen);
+    btnThumbs.setAttribute("aria-expanded", String(thumbsOpen));
+  });
+
+  var lightbox = document.getElementById("lightbox");
+  var lightboxImg = document.getElementById("lightboxImg");
+  function openLightbox(){ lightboxImg.src = pages[curIdx]; lightbox.classList.add("open"); }
+  function closeLightbox(){ lightbox.classList.remove("open"); lightboxImg.src = ""; }
+  document.getElementById("btnZoom").addEventListener("click", openLightbox);
+  lightbox.addEventListener("click", closeLightbox);
+  document.getElementById("lightboxClose").addEventListener("click", function(e){ e.stopPropagation(); closeLightbox(); });
+
+  document.getElementById("btnFull").addEventListener("click", function(){
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
+    else document.exitFullscreen().catch(function(){});
+  });
+
+  var resizeTimer = null, lastSize = sizeForSpread();
+  function scheduleResize(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      var s = sizeForSpread();
+      if (Math.abs(s.w - lastSize.w) < 2 && Math.abs(s.h - lastSize.h) < 2) return;
+      lastSize = s;
+      buildBook(curIdx);
+    }, 200);
+  }
+  if (window.ResizeObserver) new ResizeObserver(scheduleResize).observe(stageWrapEl);
+  else window.addEventListener("resize", scheduleResize);
+
+  setTimeout(hideHint, 5000);
+})();
+</script>
