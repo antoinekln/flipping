@@ -33,6 +33,7 @@
   .fileinfo{margin-top:12px;font-size:14px;color:var(--accent)}
   label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft);margin:14px 0 6px}
   input[type=text],select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit}
+  select option{background:#132235;color:#f4f6f5}
   input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:560px){.row{grid-template-columns:1fr}}
@@ -100,7 +101,10 @@
     <div class="thumbs" id="thumbs"></div>
     <div class="actions">
       <button class="big" id="dlHtml">⬇ Télécharger le flipbook (1 fichier HTML)<small>Recommandé. Double-clic pour l'ouvrir, marche hors ligne, s'envoie par mail ou se dépose sur n'importe quel hébergement.</small></button>
-      <button class="secondary" id="dlZip">⬇ Télécharger en ZIP (index.html + dossier d'images)</button>
+      <button class="secondary" id="dlZip">⬇ Site prêt à publier (ZIP : index.html + images)</button>
+      <button class="secondary" id="dlImg">⬇ Pages en images JPG (ZIP)</button>
+      <button class="secondary" id="dlPdf">⬇ PDF allégé (les pages en images)</button>
+      <button class="secondary" id="copyEmbed">&lt;/&gt; Copier le code d'intégration (iframe) pour un site</button>
       <button class="secondary" id="preview">👁 Ouvrir l'aperçu dans un nouvel onglet</button>
       <button class="secondary" id="again">Recommencer avec un autre PDF</button>
     </div>
@@ -110,12 +114,13 @@
     <b>Et ensuite ?</b><br>
     <b>HTML unique</b> : ouvre-le dans Chrome ou envoie-le tel quel.
     <b>ZIP</b> : à décompresser pour le mettre sur GitHub Pages, Netlify ou un site existant.
-    Les formats PDF, JPG ou .exe ne conviennent pas : un livre qui se feuillette doit rester une page web.
+    Le PDF et les images servent à archiver ou partager simplement ; pour feuilleter, le HTML reste le format fait pour ça. Une application .exe n'est pas proposée : le HTML s'ouvre déjà partout.
   </section>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function(){
   var TEMPLATE = /*TEMPLATE*/"";
@@ -202,7 +207,7 @@
       var title = $("title").value.trim() || "Flipbook", subtitle = $("subtitle").value.trim();
       var single = buildHtml(dataUrls, dims, title, subtitle);
       var relPages = b64.map(function(_, i){ return "pages/page_" + String(i + 1).padStart(3, "0") + ".jpg"; });
-      result = {title: title, single: single, zipHtml: buildHtml(relPages, dims, title, subtitle), b64: b64, relPages: relPages, dataUrls: dataUrls, n: n};
+      result = {dims: dims, title: title, single: single, zipHtml: buildHtml(relPages, dims, title, subtitle), b64: b64, relPages: relPages, dataUrls: dataUrls, n: n};
       if (htmlBlobUrl) URL.revokeObjectURL(htmlBlobUrl);
       htmlBlobUrl = URL.createObjectURL(new Blob([single], {type: "text/html"}));
 
@@ -232,6 +237,30 @@
     zip.file("index.html", result.zipHtml);
     result.b64.forEach(function(b, i){ zip.file(result.relPages[i], b, {base64: true}); });
     save(await zip.generateAsync({type: "blob"}), "Flipbook_" + slug(result.title) + ".zip");
+  });
+  $("dlImg").addEventListener("click", async function(){
+    if (!result) return;
+    var zip = new JSZip();
+    result.b64.forEach(function(b, i){ zip.file("page_" + String(i + 1).padStart(3, "0") + ".jpg", b, {base64: true}); });
+    save(await zip.generateAsync({type: "blob"}), slug(result.title) + "_pages_JPG.zip");
+  });
+  $("dlPdf").addEventListener("click", function(){
+    if (!result) return;
+    if (!window.jspdf){ alert("Outil PDF non chargé (connexion internet nécessaire)."); return; }
+    var w = result.dims.w, h = result.dims.h;
+    var doc = new window.jspdf.jsPDF({orientation: w >= h ? "l" : "p", unit: "px", format: [w, h], compress: true, hotfixes: ["px_scaling"]});
+    result.dataUrls.forEach(function(u, i){
+      if (i > 0) doc.addPage([w, h], w >= h ? "l" : "p");
+      doc.addImage(u, "JPEG", 0, 0, w, h);
+    });
+    save(doc.output("blob"), slug(result.title) + "_allege.pdf");
+  });
+  $("copyEmbed").addEventListener("click", function(){
+    var code = '<iframe src="URL_DE_TON_FLIPBOOK" style="width:100%;height:640px;border:0" allowfullscreen loading="lazy" title="' + esc(result ? result.title : "Flipbook") + '"></iframe>';
+    var btn = $("copyEmbed");
+    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function(){
+      btn.textContent = "✓ Copié — remplace URL_DE_TON_FLIPBOOK par l'adresse où tu publies le fichier HTML";
+    }, function(){ window.prompt("Copie ce code :", code); });
   });
   $("preview").addEventListener("click", function(){ if (htmlBlobUrl) window.open(htmlBlobUrl, "_blank"); });
   $("again").addEventListener("click", function(){
